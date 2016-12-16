@@ -114,8 +114,8 @@ strategy <- function(open, high, low, close, amt, buyable, sellable, initial.cas
   
   available.cash <- initial.cash  # initialize available cash
   position.matrix <- close*0  # initialize position matrix
-  mon <- 100
   mod <- close*0
+  mon <- 100
   e <- 1
   w <- 1 
   for(j in 2:nrow(close)){
