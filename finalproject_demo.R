@@ -47,10 +47,52 @@ strategy <- function(open, high, low, close, amt, buyable, sellable, initial.cas
     return(z)
   }
   
+  feature = function(open,close,amt,high,low,e,c){
+    w = matrix(0,ncol=c*4+1,nrow=(e-c-1)*(ncol(low)))
+    for(p in 1:ncol(low)){
+      for(m in 1:(e-c-1)){
+        w[(p-1)*(e-c-1)+m,1:c] <- close[m:(m+c-1),p]-open[m:(m+c-1),p]
+        w[(p-1)*(e-c-1)+m,(c+1):(2*c)] <- t(high[m:(m+c-1),p])
+        w[(p-1)*(e-c-1)+m,(2*c+1):(3*c)] <- t(low[m:(m+c-1),p])
+        w[(p-1)*(e-c-1)+m,(3*c+1):(4*c)] <- t(amt[m:(m+c-1),p])
+        w[(p-1)*(e-c-1)+m,(4*c+1)] <- t(close[(m+c),p]-open[(m+c),p])
+      }
+    }
+    return(w)
+  }
+  
+  
+  
+  pre = function(open,close,amt,high,low,e,c){
+    w = matrix(0,ncol=c*4+1,nrow=(nrow(low)-e)*(ncol(low)))
+    for(p in 1:ncol(low)){
+      for(m in (e+1):(nrow(low)-c-1)){
+        w[(p-1)*(nrow(low)-c-1-e)+(m-e),1:c] <- close[(m-c+1):m,p]-open[(m-c+1):m,p]
+        w[(p-1)*(nrow(low)-c-1-e)+(m-e),(c+1):(2*c)] <- t(high[(m-c+1):m,p])
+        w[(p-1)*(nrow(low)-c-1-e)+(m-e),(2*c+1):(3*c)] <- t(low[(m-c+1):m,p])
+        w[(p-1)*(nrow(low)-c-1-e)+(m-e),(3*c+1):(4*c)] <- t(amt[(m-c+1):m,p])
+        w[(p-1)*(nrow(low)-c-1-e)+(m-e),(4*c+1)] <- 0
+      }
+    }
+    return(w)
+  }
+  premod = function(pre,e,c,ro,co){
+    pr <- matrix(0,ncol=co,nrow=ro)
+    for(l in 1:(nrow(pre)/(ro-e))){
+      pr[(e+1):(ro),l] <- pre[((ro-e)*(l-1)+1):((ro-e)*l),4*c+1]
+    }
+    
+    return(pr)
+  }
+  
+  
   
   getmod = function(amt,open,close,high,low,e){
     if(e==1){
       return(getmod1(amt,open,close,high,low))
+    }
+    if(e==2){
+      return(getmod2(amt,open,close,high,low))
     }
   }
   
@@ -60,6 +102,17 @@ strategy <- function(open, high, low, close, amt, buyable, sellable, initial.cas
       mod[j,] <- close[j-1,]-open[j-1,]
     }
     return(mod)
+  }
+  
+  getmod2 = function(amt,open,close,high,low){
+    train <- feature(open,close,amt,high,low,101,10)
+    predict <- pre(open,close,amt,high,low,101,10)
+    #models <- fit(train)
+    #predict[,41] <- modelpredict(predict[,1:40],models)
+    predict[,41]<-c(1:nrow(predict))
+    mod <- premod(predict,101,10,nrow(low),ncol(low))
+    return(mod)
+    
   }
    
   getsa = function(open,close,amt,high,low,buyable,sellable,mon,mod,tra,e){
@@ -85,7 +138,8 @@ strategy <- function(open, high, low, close, amt, buyable, sellable, initial.cas
       #which to sell
       sel = which(pos[j-1,]>pos[j,])
       #Can I sell it today
-      pos[j,sel[which(sellable[j,sel]==0)]] = pos[j-1,sel[which(sellable[j,sel]==0)]]
+      if(length(sel)!=0 && length(which(sellable[j,sel]==0))!=0) 
+        pos[j,sel[which(sellable[j,sel]==0)]] = pos[j-1,sel[which(sellable[j,sel]==0)]]
       #Calculate the money left today
       mon[j] <- mon[j-1] + getmo(pos,j,tra,open,close)
    }
@@ -93,6 +147,9 @@ strategy <- function(open, high, low, close, amt, buyable, sellable, initial.cas
    return(pos)
     
   }
+  
+  
+  
   
   ## the main part of your strategy
   ## (please describe the idea of your strategy in the beginning, and give comments on key codes)
@@ -108,6 +165,8 @@ strategy <- function(open, high, low, close, amt, buyable, sellable, initial.cas
   
   reserved.cash <- 10
   investment.cash <- 5
+  
+  
   
   MA5 <- apply(close, 2, SMA, n=5)  # 5-day simple moving average
   MA60 <- apply(close, 2, SMA, n=60)  # 60-day simples moving average
@@ -135,7 +194,7 @@ strategy <- function(open, high, low, close, amt, buyable, sellable, initial.cas
   
     
   
-  mod <- getmod(amt,open,close,high,low,e)
+  mod <- getmod(amt,open,close,high,low,2)
   position.matrix <- getsa(open,close,amt,high,low,buyable,sellable,mon,mod,transaction,e)
   
   
