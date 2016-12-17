@@ -37,47 +37,60 @@ strategy <- function(open, high, low, close, amt, buyable, sellable, initial.cas
   
   
   getmo = function(pos,j,tra,open,close){
-    pos.get = pos[j,]-pos[j-1,]
-    z = 0
+    pos.get <- pos[j,] - pos[j-1,]
+    z <- 0
     for(n in 1:ncol(pos[j,])){
-      if (pos.get[n]<0){
-        z <- z - pos.get[n]*open[j,n]*(1+tra)
-      }
-      if (pos.get[n]>0){
-        z <- z - pos.get[n]*close[j,n]*(1-tra)
-      }
-      
+      if (pos.get[n]<0) z <- z - pos.get[n]*open[j,n]*(1+tra)
+      if (pos.get[n]>0) z <- z - pos.get[n]*close[j,n]*(1-tra)
     }
+    z <- as.numeric(z)
     return(z)
   }
   
   
-  getmod = function(amt,open,close,high,low,j,e){
+  getmod = function(amt,open,close,high,low,e){
     if(e==1){
-      return(getmod1(amt,open,close,high,low,j))
+      return(getmod1(amt,open,close,high,low))
     }
   }
   
-  getmod1 = function(amt,open,close,high,low,j){
-    return(close[j-1,]-open[j-1,])
+  getmod1 = function(amt,open,close,high,low){
+    mod<-low*0
+    for(j in 2:nrow(close)){
+      mod[j,] <- close[j-1,]-open[j-1,]
+    }
+    return(mod)
   }
-  
-  getsa = function(open,close,amt,high,low,buyable,mon,mod,j,e){
+   
+  getsa = function(open,close,amt,high,low,buyable,sellable,mon,mod,tra,e){
     if(e==1){
-      return(getsa1(open,close,amt,high,low,buyable,mon,mod,j))
+      return(getsa1(open,close,amt,high,low,buyable,sellable,mon,mod,tra))
     }
   }
   
-  getsa1 = function(open,close,amt,high,low,buyable,mon,mod,j){
-    pos <- matrix(1,ncol(close))
-    tra <- 0.008
-    mon <- 0.1*mon
-    modthe = mod[j,] * buyable[j,]
-    bought <- order(modthe)[ncol(close)]
-    pos <- close[1,]*0
-    getsha <- mon/open[j,bought]/(1+tra)
-    pos[bought] <- getsha
-    return(pos)
+  getsa1 = function(open,close,amt,high,low,buyable,sellable,mon,mod,tra){
+   pos <- low*0
+   for(j in 2:nrow(close)){
+      #B
+      monspe <- 0.1*mon[j-1]
+      #buyable?
+      modthe <- mod[j,which(buyable[j,]==1)]
+      #A
+      bought <- which(buyable[j,]==1)[order(modthe)[ncol(modthe)]]
+      #calculate the share you buy today
+      getsha <- monspe/open[j,bought]/(1+tra)
+      #calculate the result of the position matrix of buy
+      pos[j,bought] <- getsha
+      #calculate the result of the position matrix of sell 
+      #which to sell
+      sel = which(pos[j-1,]>pos[j,])
+      #Can I sell it today
+      pos[j,sel[which(sellable[j,sel]==0)]] = pos[j-1,sel[which(sellable[j,sel]==0)]]
+      #Calculate the money left today
+      mon[j] <- mon[j-1] + getmo(pos,j,tra,open,close)
+   }
+   write.csv(mon,"mon.csv")
+   return(pos)
     
   }
   
@@ -115,14 +128,16 @@ strategy <- function(open, high, low, close, amt, buyable, sellable, initial.cas
   available.cash <- initial.cash  # initialize available cash
   position.matrix <- close*0  # initialize position matrix
   mod <- close*0
-  mon <- 100
+  mon <- matrix(0,nrow=nrow(low),ncol=1)
+  mon[1] <- 100
   e <- 1
   w <- 1 
-  for(j in 2:nrow(close)){
-    mod[j,] <- getmod(amt,open,close,high,low,j,e)
-    position.matrix[j,] <- getsa(open,close,amt,high,low,buyable,mon,mod,j,e)
-    mon <- mon + getmo(position.matrix,j,transaction,open,close)
-  }
+  
+    
+  
+  mod <- getmod(amt,open,close,high,low,e)
+  position.matrix <- getsa(open,close,amt,high,low,buyable,sellable,mon,mod,transaction,e)
+  
   
   ## return position.matrix
   return(position.matrix)
@@ -138,6 +153,9 @@ low <- LOW[start:end,]
 amt <- AMT[start:end,]
 buyable <- BUYABLE[start:end,]
 sellable <- SELLABLE[start:end,]
+
+
+
 
 position.matrix <- strategy(open, high, low, close, amt, buyable, sellable, initial.cash, transaction)
 write.csv(position.matrix,"qwe.csv")
